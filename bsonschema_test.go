@@ -3,11 +3,16 @@ package gomongoschema_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fundamentei/gomongoschema"
 	"github.com/stretchr/testify/assert"
+	"github.com/xeipuuv/gojsonschema"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func TestBsonSchemaToJSONSchemaBsonTypeToType(t *testing.T) {
@@ -33,16 +38,51 @@ func TestBsonSchemaToJSONSchemaBsonTypeObjectId(t *testing.T) {
 	assert.Equal(
 		t,
 		// string or {"$oid": "string"}
-		`{"type":[{"type":"string"},{"additionalProperties":false,"properties":{"$oid":{"type":"string"}},"required":["$oid"],"type":"object"}]}`,
-		gomongoschema.BsonSchemaToJSONSchema(`{"bsonType":"objectId"}`),
+		mustUglifyJSON(
+			`
+{
+	"oneOf": [
+		{ "type": "string" },
+		{
+			"additionalProperties": false,
+			"properties": { "$oid": { "type": "string" } },
+			"required": ["$oid"],
+			"type": "object"
+		}
+	]
+}
+			`,
+		),
+		mustUglifyJSON(gomongoschema.BsonSchemaToJSONSchema(`{"bsonType":"objectId"}`)),
 	)
 }
 
 func TestBsonSchemaToJSONSchemaBsonTypeDate(t *testing.T) {
 	assert.Equal(
 		t,
-		`{"type":[{"format":"datetime","type":"string"}]}`,
-		gomongoschema.BsonSchemaToJSONSchema(`{"bsonType":"date"}`),
+		mustUglifyJSON(
+			`
+{
+	"oneOf": [
+		{ "format": "datetime", "type": "string" },
+		{
+			"additionalProperties": false,
+			"properties": {
+				"$date": {
+					"additionalProperties": false,
+					"properties": { "$numberLong": { "type": ["string", "number"] } },
+					"required": ["$numberLong"],
+					"type": "object"
+				}
+			},
+			"required": ["$date"],
+			"type": "object"
+		}
+	]
+}
+			`,
+		),
+		mustUglifyJSON(gomongoschema.BsonSchemaToJSONSchema(`{"bsonType":"date"}`)),
 	)
 }
 
@@ -52,9 +92,10 @@ func TestBsonSchemaToJSONSchemaComplexSchema(t *testing.T) {
 		mustUglifyJSON(
 			`
 {
+	"additionalProperties": false,
 	"properties": {
 		"_id": {
-			"type": [
+			"oneOf": [
 				{ "type": "string" },
 				{
 					"additionalProperties": false,
@@ -66,7 +107,6 @@ func TestBsonSchemaToJSONSchemaComplexSchema(t *testing.T) {
 		}
 	},
 	"required": ["_id"],
-	"additionalProperties": false,
 	"type": "object"
 }
 			`,
@@ -88,6 +128,88 @@ func TestBsonSchemaToJSONSchemaComplexSchema(t *testing.T) {
 	)
 }
 
+func TestValidateSimpleSchema(t *testing.T) {
+	assert.Nil(
+		t,
+		validateAgainstSchema(
+			gomongoschema.BsonSchemaToJSONSchema(
+				`
+{
+	"bsonType": "object",
+	"required": ["_id", "firstName", "lastName", "createdAt", "updatedAt"],
+	"additionalProperties": false,
+	"properties": {
+		"_id": {
+			"bsonType": "objectId"
+		},
+		"firstName": {
+			"bsonType": "string"
+		},
+		"lastName": {
+			"bsonType": "string"
+		},
+		"createdAt": {
+			"bsonType": "date"
+		},
+		"updatedAt": {
+			"bsonType": ["date", "null"]
+		}
+	}
+}
+				`,
+			),
+			&bson.M{
+				"_id":       primitive.NewObjectID(),
+				"firstName": "John",
+				"lastName":  "Connor",
+				"createdAt": time.Now(),
+				"updatedAt": nil,
+			},
+		),
+	)
+}
+
+func TestFailsSchemaValidationMissingFirstName(t *testing.T) {
+	assert.NotNil(
+		t,
+		validateAgainstSchema(
+			gomongoschema.BsonSchemaToJSONSchema(
+				`
+{
+	"bsonType": "object",
+	"required": ["_id", "firstName", "lastName", "createdAt", "updatedAt"],
+	"additionalProperties": false,
+	"properties": {
+		"_id": {
+			"bsonType": "objectId"
+		},
+		"firstName": {
+			"bsonType": "string"
+		},
+		"lastName": {
+			"bsonType": "string"
+		},
+		"createdAt": {
+			"bsonType": "date"
+		},
+		"updatedAt": {
+			"bsonType": ["date", "null"]
+		}
+	}
+}
+				`,
+			),
+			&bson.M{
+				"_id":       primitive.NewObjectID(),
+				"firstName": nil,
+				"lastName":  "Connor",
+				"createdAt": time.Now(),
+				"updatedAt": nil,
+			},
+		),
+	)
+}
+
 func mustUglifyJSON(jstr string) string {
 	bb := bytes.NewBuffer([]byte{})
 
@@ -102,4 +224,35 @@ func mustUglifyJSON(jstr string) string {
 	}
 
 	return strings.TrimSpace(bb.String())
+}
+
+func validateAgainstSchema(schema string, doc interface{}) error {
+	bsondoc, err := bson.MarshalExtJSON(doc, true, false)
+
+	if err != nil {
+		return err
+	}
+
+	jsonschema := gomongoschema.BsonSchemaToJSONSchema(schema)
+
+	schemaLoader := gojsonschema.NewStringLoader(jsonschema)
+	documentLoader := gojsonschema.NewBytesLoader(bsondoc)
+
+	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+
+	if err != nil {
+		return err
+	}
+
+	if result.Valid() {
+		return nil
+	}
+
+	var merr error
+
+	for _, err := range result.Errors() {
+		merr = fmt.Errorf("%s: %w", err.Description(), merr)
+	}
+
+	return merr
 }

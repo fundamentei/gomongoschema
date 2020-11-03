@@ -29,11 +29,6 @@ func BsonSchemaToJSONSchema(bsonSchema string) string {
 		},
 	}
 
-	dateType := map[string]string{
-		"type":   "string",
-		"format": "datetime",
-	}
-
 	numberLongType := []interface{}{
 		map[string]string{
 			"type": "number",
@@ -45,6 +40,30 @@ func BsonSchemaToJSONSchema(bsonSchema string) string {
 			"properties": map[string]interface{}{
 				"$numberLong": map[string][]string{
 					"type": {"string", "number"},
+				},
+			},
+		},
+	}
+
+	dateType := []interface{}{
+		map[string]string{
+			"type":   "string",
+			"format": "datetime",
+		},
+		map[string]interface{}{
+			"type":                 "object",
+			"additionalProperties": false,
+			"required":             []string{"$date"},
+			"properties": map[string]interface{}{
+				"$date": map[string]interface{}{
+					"type":                 "object",
+					"additionalProperties": false,
+					"required":             []string{"$numberLong"},
+					"properties": map[string]interface{}{
+						"$numberLong": map[string][]string{
+							"type": {"string", "number"},
+						},
+					},
 				},
 			},
 		},
@@ -80,27 +99,27 @@ func BsonSchemaToJSONSchema(bsonSchema string) string {
 		if k == "bsonType" {
 			// handling for special BSON types (objectId, date, long, timestamp, regex)
 			if v.Type == gjson.String && v.String() == "objectId" {
-				modifiedSchema = mustSetJSON(modifiedSchema, "type", objectIDType)
+				modifiedSchema = mustSetJSON(modifiedSchema, "oneOf", objectIDType)
 				continue
 			}
 
 			if v.Type == gjson.String && v.String() == "date" {
-				modifiedSchema = mustSetJSON(modifiedSchema, "type", []interface{}{dateType})
+				modifiedSchema = mustSetJSON(modifiedSchema, "oneOf", dateType)
 				continue
 			}
 
 			if v.Type == gjson.String && v.String() == "long" {
-				modifiedSchema = mustSetJSON(modifiedSchema, "type", numberLongType)
+				modifiedSchema = mustSetJSON(modifiedSchema, "oneOf", numberLongType)
 				continue
 			}
 
 			if v.Type == gjson.String && v.String() == "timestamp" {
-				modifiedSchema = mustSetJSON(modifiedSchema, "type", timestampType)
+				modifiedSchema = mustSetJSON(modifiedSchema, "oneOf", timestampType)
 				continue
 			}
 
 			if v.Type == gjson.String && v.String() == "regex" {
-				modifiedSchema = mustSetJSON(modifiedSchema, "type", regexType)
+				modifiedSchema = mustSetJSON(modifiedSchema, "oneOf", regexType)
 				continue
 			}
 
@@ -126,17 +145,17 @@ func BsonSchemaToJSONSchema(bsonSchema string) string {
 					}
 
 					if tv.String() == "objectId" {
-						oneOfComplexTypes = append(oneOfComplexTypes, objectIDType)
+						oneOfComplexTypes = append(oneOfComplexTypes, objectIDType...)
 						continue
 					}
 
 					if tv.String() == "date" {
-						oneOfComplexTypes = append(oneOfComplexTypes, dateType)
+						oneOfComplexTypes = append(oneOfComplexTypes, dateType...)
 						continue
 					}
 
 					if tv.String() == "long" {
-						oneOfComplexTypes = append(oneOfComplexTypes, numberLongType)
+						oneOfComplexTypes = append(oneOfComplexTypes, numberLongType...)
 						continue
 					}
 
