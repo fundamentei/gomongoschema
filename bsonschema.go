@@ -81,7 +81,6 @@ func BsonSchemaToJSONSchema(bsonSchema string) string {
 			// handling for special BSON types (objectId, date, long, timestamp, regex)
 			if v.Type == gjson.String && v.String() == "objectId" {
 				modifiedSchema = mustSetJSON(modifiedSchema, "type", objectIDType)
-
 				continue
 			}
 
@@ -195,11 +194,11 @@ func BsonSchemaToJSONSchema(bsonSchema string) string {
 
 // TODO(andreyvital): refactor this - don't panic
 func mustSetJSON(input string, key string, value interface{}) string {
-	changed, err := sjson.Set(input, key, value)
+	json, err := sjson.Set(input, key, value)
 
 	if err != nil {
 		panic(err)
 	}
 
-	return changed
+	return json
 }
