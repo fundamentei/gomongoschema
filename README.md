@@ -7,6 +7,6 @@ This issue will be resolved by https://jira.mongodb.org/browse/SERVER-20547. How
 
 ## How does this work?
 
-MongoDB has its own `bsonType` aside from the standard JSON Schema `type`, along with other specialties. The way this "helper" works is by converting the given Mongo `$jsonSchema` to a standard schema that can be used with any schema validation library. Such as [xeipuuv/gojsonschema](github.com/xeipuuv/gojsonschema).
+MongoDB has its own `bsonType` aside from the standard JSON Schema `type`, along with other specialties. The way this "helper" works is by converting the given Mongo `$jsonSchema` to a standard schema that can be used with any schema validation library. Such as [xeipuuv/gojsonschema](https://github.com/xeipuuv/gojsonschema).
 
 _**Disclaimer**_: that's the most effective way I found to do it at the moment since we lack official support.
