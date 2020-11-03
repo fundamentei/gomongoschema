@@ -11,6 +11,12 @@ MongoDB has its own `bsonType` aside from the standard JSON Schema `type`, along
 
 _**Disclaimer**_: that's the most effective way I found to do it at the moment since we lack official support.
 
+## Installation
+
+```SH
+go get -u github.com/fundamentei/gomongoschema
+```
+
 ## How to use?
 
 This package won't abstract the database usage for you. You'll need to find a way to pull the `$jsonSchema` out of the collection you're validating the document for. And also choose
