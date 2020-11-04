@@ -91,7 +91,7 @@ func (v *validator) Validate(collection string, document interface{}) error {
 	var merr error
 
 	for _, err := range validationResult.Errors() {
-		merr = fmt.Errorf("%s: %w", err.Description(), err)
+		merr = fmt.Errorf("%s: %w", err.Description(), merr)
 	}
 
 	return merr

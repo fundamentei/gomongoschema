@@ -22,7 +22,63 @@ go get -u github.com/fundamentei/gomongoschema
 This package won't abstract the database usage for you. You'll need to find a way to pull the `$jsonSchema` out of the collection you're validating the document for. And also choose
 the library that you'll use to perform the schema validation.
 
-But as an example:
+### The easy way
+
+```Go
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/fundamentei/gomongoschema"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+func main() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer client.Disconnect(ctx)
+
+	if err != nil {
+		panic(err)
+	}
+
+	validator := gomongoschema.NewValidator(
+		gomongoschema.NewMongoDriverSchemaFetcher(func() ([]*mongo.CollectionSpecification, error) {
+			db := client.Database("gomongoschema")
+
+			return db.ListCollectionSpecifications(
+				ctx,
+				bson.M{},
+				&options.ListCollectionsOptions{},
+			)
+		}),
+	)
+
+	verr := validator.Validate("users", &bson.M{
+		"_id":       primitive.NewObjectID(),
+		"firstName": "John",
+		"createdAt": nil,
+	})
+
+	fmt.Println(verr)
+}
+```
+
+### The hard way
 
 ```Go
 package main
